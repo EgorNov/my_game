@@ -141,6 +141,7 @@ player_image = load_image('player.png', colorkey=-1)
 fly_image = pygame.transform.scale2x(load_image('fly.png', colorkey=-1))
 hurt_image = load_image('hurt.png', colorkey=-1)
 laser_image = load_image('laser.png', colorkey=-1)
+bullet_image = load_image('bullet.png', colorkey=-1)
 
 tile_width = tile_images['wall'].get_rect()[2]
 tile_height = tile_images['wall'].get_rect()[2]
@@ -149,12 +150,24 @@ player_width = player_image.get_rect()[3]
 
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, type, posx, posy):
-        super().__init__(tiles_group, all_sprites)
+    def __init__(self, speed, dir, posx, posy):
+        super().__init__(bullet_group)
         self.type = type
-        self.image = tile_images[type]
+        self.image = bullet_image
         self.mask = pygame.mask.from_surface(self.image)
-        self.rect = self.image.get_rect().move(tile_width * posx, tile_height * posy)
+        self.rect = (posx, posy)
+        self.speed = speed
+        self.dir = dir
+
+    def update(self):
+        if self.dir == 'up':
+            self.rect.y -= self.speed
+        if self.dir == 'down':
+            self.rect.y += self.speed
+        if self.dir == 'left':
+            self.rect.x -= self.speed
+        if self.dir == 'right':
+            self.rect.x += self.speed
 
 
 class Tile(pygame.sprite.Sprite):
@@ -227,6 +240,7 @@ class Player(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(tile_width * posx + 15, tile_height * posy + 5)
         self.speed = 2
+        self.bullet_speed = 2
 
     def cut_sheet(self, sheet, columns, rows):
         directions = ['down', 'left', 'right', 'up']
@@ -258,14 +272,8 @@ class Player(pygame.sprite.Sprite):
         self.image = hurt_image
 
     def fire(self, dir):
-        if dir == 'up':
-            pass
-        if dir == 'down':
-            pass
-        if dir == 'left':
-            pass
-        if dir == 'right':
-            pass
+
+        Bullet(self.bullet_speed, dir, player.rect.x + player_width // 2, player.rect.y + player_high // 2)
 
 
 class Fly(pygame.sprite.Sprite):
@@ -448,18 +456,28 @@ while running:
                         s = True
                     direction = 'down'
                     player.stand = False
+                if event.key == pygame.K_UP:
+                    player.fire('up')
+                if event.key == pygame.K_DOWN:
+                    player.fire('down')
+                if event.key == pygame.K_LEFT:
+                    player.fire('left')
+                if event.key == pygame.K_RIGHT:
+                    player.fire('up')
+
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_a:
                     a = False
-                    player.stand = True
+
                 if event.key == pygame.K_d:
                     d = False
-                    player.stand = True
+
                 if event.key == pygame.K_w:
                     w = False
-                    player.stand = True
+
                 if event.key == pygame.K_s:
                     s = False
+                if (w, a, s, d) == (False,False,False,False,):
                     player.stand = True
         # camera.update()
         if w:
