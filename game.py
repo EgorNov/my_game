@@ -64,8 +64,9 @@ def startScreen():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
-            elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
-                return  # начинаем игру
+            elif event.type == pygame.KEYDOWN:
+                if event.key == 13 or event.key == pygame.K_SPACE:
+                    return  # начинаем игру
         pygame.display.flip()
         clock.tick(fps)
 
@@ -79,9 +80,10 @@ def end_screen(sprite):
 
     screen.fill(0)
     spr = pygame.sprite.Sprite()
-    spr.image = load_image("fone_1.png")
+    spr.image = pygame.transform.scale2x(load_image("fone_1.png"))
     spr.rect = spr.image.get_rect()
-    sprite.rect.x = 259
+    sprite.image = pygame.transform.scale2x(sprite.image)
+    sprite.rect.x = 259 * 2
     sprite.rect.y = 99
     f.add(spr)
 
@@ -89,7 +91,7 @@ def end_screen(sprite):
     textCoord = 50
     f.draw(screen)
     for i in range(len(introText)):
-        stringRendered = font.render(introText[i], 1, pygame.Color('black'))
+        stringRendered = pygame.transform.scale2x(font.render(introText[i], 1, pygame.Color('black')))
         introRect = stringRendered.get_rect()
         textCoord += 10
         introRect.top = textCoord
@@ -103,8 +105,9 @@ def end_screen(sprite):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
-            elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
-                return  # начинаем игру
+            elif event.type == pygame.KEYDOWN:
+                if event.key == 13 or event.key == pygame.K_SPACE:
+                    return  # начинаем игру
         pygame.display.flip()
         e.draw(screen)
         clock.tick(fps)
@@ -136,6 +139,7 @@ def load_level(filename):
     return level_map
 
 
+pause_image = load_image('fone_2.png', colorkey=-1)
 tile_images = {'wall': load_image('box.png'), 'empty': load_image('grass.png')}
 player_image = load_image('player.png', colorkey=-1)
 fly_image = pygame.transform.scale2x(load_image('fly.png', colorkey=-1))
@@ -152,14 +156,21 @@ player_width = player_image.get_rect()[3]
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, speed, dir, posx, posy):
         super().__init__(bullet_group)
-        self.type = type
+        # self.type = type
         self.image = bullet_image
         self.mask = pygame.mask.from_surface(self.image)
-        self.rect = (posx, posy)
+        self.rect = self.image.get_rect()
+        self.rect.x = posx
+        self.rect.y = posy
         self.speed = speed
         self.dir = dir
 
     def update(self):
+        for sprite in all_sprites:
+            if pygame.sprite.collide_mask(self, sprite):
+                if sprite.type != 'player' and sprite.type != 'empty':
+                    sprite.hearts -= 1
+                    bullet_group.remove(self)
         if self.dir == 'up':
             self.rect.y -= self.speed
         if self.dir == 'down':
@@ -174,6 +185,7 @@ class Tile(pygame.sprite.Sprite):
     def __init__(self, type, posx, posy):
         super().__init__(tiles_group, all_sprites)
         self.type = type
+        self.hearts = 0
         self.image = tile_images[type]
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(tile_width * posx, tile_height * posy)
@@ -220,6 +232,7 @@ class Turret(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
     def update(self):
+
         self.cur_frame = (self.cur_frame + 1) % len(self.frames)
         self.image = self.frames[self.cur_frame]
 
@@ -235,7 +248,10 @@ class Player(pygame.sprite.Sprite):
         self.cut_sheet(player_image, columns, rows)
         self.cur_frame = 0
         self.stand = True
+        self.type = 'player'
         self.hearts = 6
+        self.last_direct = None
+        self.cur_direct = None
         self.image = self.frames['down'][6]
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(tile_width * posx + 15, tile_height * posy + 5)
@@ -261,10 +277,10 @@ class Player(pygame.sprite.Sprite):
                 self.frames[directions[j]].append(sheet.subsurface(pygame.Rect(
                     frame_location, self.rect.size)))
 
-    def update(self, direction):
+    def update(self):
         if not self.stand:
-            self.cur_frame = (self.cur_frame + 1) % len(self.frames[direction])
-            self.image = self.frames[direction][self.cur_frame]
+            self.cur_frame = (self.cur_frame + 1) % len(self.frames[self.cur_direct])
+            self.image = self.frames[self.cur_direct][self.cur_frame]
         else:
             self.image = self.frames['down'][6]
 
@@ -272,8 +288,7 @@ class Player(pygame.sprite.Sprite):
         self.image = hurt_image
 
     def fire(self, dir):
-
-        Bullet(self.bullet_speed, dir, player.rect.x + player_width // 2, player.rect.y + player_high // 2)
+        Bullet(self.bullet_speed, dir, player.rect.x, player.rect.y)
 
 
 class Fly(pygame.sprite.Sprite):
@@ -284,6 +299,7 @@ class Fly(pygame.sprite.Sprite):
         self.frames = []
         self.cut_sheet(fly_image, columns, rows)
         self.cur_frame = 0
+        self.type = 'enemy'
         self.stand = True
         self.hearts = 3
         self.image = self.frames[self.cur_frame]
@@ -319,6 +335,9 @@ class Fly(pygame.sprite.Sprite):
     def update(self):
         self.cur_frame = (self.cur_frame + 1) % len(self.frames)
         self.image = self.frames[self.cur_frame]
+        if self.hearts <= 0:
+            enemy_group.remove(self)
+            all_sprites.remove(self)
         if self.cur_frame % 2 == 0:
             return
         if player.rect.x > self.rect.x:
@@ -329,6 +348,26 @@ class Fly(pygame.sprite.Sprite):
             self.rect.y += 1
         if player.rect.y < self.rect.y:
             self.rect.y -= 1
+
+
+def pause():
+    p = pygame.sprite.Group()
+    sprite = pygame.sprite.Sprite(p)
+    sprite.image = pause_image
+    sprite.rect = sprite.image.get_rect()
+    sprite.rect.x = 200
+    sprite.rect.y = 200
+    p.draw(screen)
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == 13 or event.key == pygame.K_SPACE:
+                    return  # начинаем игру
+        pygame.display.flip()
+        p.draw(screen)
+        clock.tick(fps)
 
 
 class Centre:
@@ -422,7 +461,9 @@ while running:
 
                     if fl:
                         a = True
-                    direction = 'left'
+                    if player.cur_direct != 'left':
+                        player.last_direct = player.cur_direct
+                    player.cur_direct = 'left'
 
                 if event.key == pygame.K_d:
                     player.stand = False
@@ -433,7 +474,9 @@ while running:
                             d = False
                     if fl:
                         d = True
-                    direction = 'right'
+                    if player.cur_direct != 'right':
+                        player.last_direct = player.cur_direct
+                    player.cur_direct = 'right'
                 if event.key == pygame.K_w:
                     player.stand = False
                     fl = True
@@ -443,19 +486,23 @@ while running:
                             w = False
                     if fl:
                         w = True
-                    direction = 'up'
+                    if player.cur_direct != 'up':
+                        player.last_direct = player.cur_direct
+                    player.cur_direct = 'up'
 
                 if event.key == pygame.K_s:
                     fl = True
-                    player.stand = True
+                    player.stand = False
                     for tile in collided_sprites:
                         if tile.rect.y > player.rect.y > tile.rect.y - player_high - 1:
                             fl = False
                             s = False
                     if fl:
                         s = True
-                    direction = 'down'
-                    player.stand = False
+                    if player.cur_direct != 'down':
+                        player.last_direct = player.cur_direct
+                    player.cur_direct = 'down'
+
                 if event.key == pygame.K_UP:
                     player.fire('up')
                 if event.key == pygame.K_DOWN:
@@ -463,22 +510,28 @@ while running:
                 if event.key == pygame.K_LEFT:
                     player.fire('left')
                 if event.key == pygame.K_RIGHT:
-                    player.fire('up')
+                    player.fire('right')
+
+                if event.key == pygame.K_ESCAPE:
+                    pause()
 
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_a:
                     a = False
-
+                    player.cur_direct = player.last_direct
                 if event.key == pygame.K_d:
                     d = False
-
+                    player.cur_direct = player.last_direct
                 if event.key == pygame.K_w:
                     w = False
-
+                    player.cur_direct = player.last_direct
                 if event.key == pygame.K_s:
                     s = False
-                if (w, a, s, d) == (False,False,False,False,):
+                    player.cur_direct = player.last_direct
+                if (w, a, s, d) == (False, False, False, False,):
                     player.stand = True
+            print(player.cur_direct)
+            print(player.last_direct)
         # camera.update()
         if w:
             player.rect.y -= player.speed
@@ -503,7 +556,10 @@ while running:
         for enemy in enemy_group:
             enemy.update()
         enemy_group.draw(screen)
-        player.update(direction)
+        bullet_group.draw(screen)
+        for bul in bullet_group:
+            bul.update()
+        player.update()
         if 0 < c < 30:
             player.hurt()
 
