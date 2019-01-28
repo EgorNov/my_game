@@ -140,21 +140,25 @@ def load_level(filename):
 
 
 pause_image = load_image('fone_2.png', colorkey=-1)
-tile_images = {'wall': load_image('box.png'), 'empty': load_image('grass.png')}
+tile_images = {'l': load_image('l_wall.png'), 'r': load_image('r_wall.png'),
+               '_': load_image('_.png'),
+               '-': load_image('-.png'), '1': load_image('1.png'),
+               '2': load_image('2.png'), '3': load_image('3.png'),
+               '4': load_image('4.png'), 'empty': load_image('floor.png')}
 player_image = load_image('player.png', colorkey=-1)
 fly_image = pygame.transform.scale2x(load_image('fly.png', colorkey=-1))
 hurt_image = load_image('hurt.png', colorkey=-1)
 laser_image = load_image('laser.png', colorkey=-1)
 bullet_image = load_image('bullet.png', colorkey=-1)
 
-tile_width = tile_images['wall'].get_rect()[2]
-tile_height = tile_images['wall'].get_rect()[2]
+tile_width = tile_images['empty'].get_rect()[2]
+tile_height = tile_images['empty'].get_rect()[2]
 player_high = player_image.get_rect()[2]
 player_width = player_image.get_rect()[3]
 
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, speed, dir, posx, posy):
+    def __init__(self, speed, dir, posx, posy, range):
         super().__init__(bullet_group)
         # self.type = type
         self.image = bullet_image
@@ -164,8 +168,12 @@ class Bullet(pygame.sprite.Sprite):
         self.rect.y = posy
         self.speed = speed
         self.dir = dir
+        self.range = range
+        self.cur_range = 0
 
     def update(self):
+        if self.cur_range >= self.range:
+            bullet_group.remove(self)
         for sprite in all_sprites:
             if pygame.sprite.collide_mask(self, sprite):
                 if sprite.type != 'player' and sprite.type != 'empty':
@@ -173,18 +181,24 @@ class Bullet(pygame.sprite.Sprite):
                     bullet_group.remove(self)
         if self.dir == 'up':
             self.rect.y -= self.speed
+            self.cur_range += self.speed
         if self.dir == 'down':
             self.rect.y += self.speed
+            self.cur_range += self.speed
         if self.dir == 'left':
             self.rect.x -= self.speed
+            self.cur_range += self.speed
         if self.dir == 'right':
             self.rect.x += self.speed
+            self.cur_range += self.speed
 
 
 class Tile(pygame.sprite.Sprite):
     def __init__(self, type, posx, posy):
         super().__init__(tiles_group, all_sprites)
         self.type = type
+        if type != 'empty':
+            self.type = 'wall'
         self.hearts = 0
         self.image = tile_images[type]
         self.mask = pygame.mask.from_surface(self.image)
@@ -256,7 +270,9 @@ class Player(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(tile_width * posx + 15, tile_height * posy + 5)
         self.speed = 2
-        self.bullet_speed = 2
+        self.bullet_speed = 3
+        self.fire_rate = 20
+        self.range = 200
 
     def cut_sheet(self, sheet, columns, rows):
         directions = ['down', 'left', 'right', 'up']
@@ -288,7 +304,7 @@ class Player(pygame.sprite.Sprite):
         self.image = hurt_image
 
     def fire(self, dir):
-        Bullet(self.bullet_speed, dir, player.rect.x, player.rect.y)
+        Bullet(self.bullet_speed, dir, player.rect.x, player.rect.y, self.range)
 
 
 class Fly(pygame.sprite.Sprite):
@@ -396,8 +412,22 @@ def generate_level(level):
         for x in range(len(level[y])):
             if level[y][x] == '.':
                 Tile('empty', x, y)
-            elif level[y][x] == '#':
-                Tile('wall', x, y)
+            elif level[y][x] == '-':
+                Tile('-', x, y,)
+            elif level[y][x] == '_':
+                Tile('_', x, y)
+            elif level[y][x] == 'r':
+                Tile('r', x, y)
+            elif level[y][x] == 'l':
+                Tile('l', x, y)
+            elif level[y][x] == '1':
+                Tile('1', x, y)
+            elif level[y][x] == '2':
+                Tile('2', x, y)
+            elif level[y][x] == '3':
+                Tile('3', x, y)
+            elif level[y][x] == '4':
+                Tile('4', x, y)
             elif level[y][x] == '@':
                 Tile('empty', x, y)
                 player = Player(3, 4, x, y, )
@@ -430,10 +460,17 @@ direction = None
 w, a, s, d = [False for i in range(4)]
 inv = False
 c = 0
+fire_pause = False
+fire_rate = 0
 while running:
     startScreen()
     generate_level(level)
     while running:
+        if fire_pause:
+            fire_rate += 1
+        if fire_rate >= player.fire_rate:
+            fire_rate = 0
+            fire_pause = False
         if c >= 90:
             inv = False
             c = 0
@@ -504,14 +541,21 @@ while running:
                     player.cur_direct = 'down'
 
                 if event.key == pygame.K_UP:
-                    player.fire('up')
+                    if not fire_pause:
+                        player.fire('up')
+                        fire_pause = True
                 if event.key == pygame.K_DOWN:
-                    player.fire('down')
+                    if not fire_pause:
+                        player.fire('down')
+                        fire_pause = True
                 if event.key == pygame.K_LEFT:
-                    player.fire('left')
+                    if not fire_pause:
+                        player.fire('left')
+                        fire_pause = True
                 if event.key == pygame.K_RIGHT:
-                    player.fire('right')
-
+                    if not fire_pause:
+                        player.fire('right')
+                        fire_pause = True
                 if event.key == pygame.K_ESCAPE:
                     pause()
 
@@ -530,8 +574,6 @@ while running:
                     player.cur_direct = player.last_direct
                 if (w, a, s, d) == (False, False, False, False,):
                     player.stand = True
-            print(player.cur_direct)
-            print(player.last_direct)
         # camera.update()
         if w:
             player.rect.y -= player.speed
