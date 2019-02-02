@@ -148,6 +148,8 @@ class Room:
                     self.tiles.append(Tile('3', x, y, wall=True))
                 elif level[y][x] == '4':
                     self.tiles.append(Tile('4', x, y, wall=True))
+                elif level[y][x] == 'o':
+                    self.tiles.append(Door(x, y))
                 elif level[y][x] == '@':
                     self.tiles.append(Tile('empty', x, y))
                     player = Player(3, 4, x, y, )
@@ -177,12 +179,16 @@ def load_level(filename):
     return level_map
 
 
+close_door = load_image('close_door.png', colorkey=(255, 255, 255))
+open_door = load_image('open_door.png', colorkey=(255, 255, 255))
 pause_image = load_image('fone_2.png')
-tile_images = {'l': load_image('l_wall.png', colorkey=(255, 255, 255)), 'r': load_image('r_wall.png', colorkey=(255, 255, 255)),
+tile_images = {'l': load_image('l_wall.png', colorkey=(255, 255, 255)),
+               'r': load_image('r_wall.png', colorkey=(255, 255, 255)),
                '_': load_image('_.png', colorkey=(255, 255, 255)),
-               '-': load_image('-.jpg', colorkey=(255, 255, 255)), '1': load_image('1.png', colorkey=(255, 255, 255)),
+               '-': load_image('-.png', colorkey=(255, 255, 255)), '1': load_image('1.png', colorkey=(255, 255, 255)),
                '2': load_image('2.png', colorkey=(255, 255, 255)), '3': load_image('3.png', colorkey=(255, 255, 255)),
-               '4': load_image('4.png', colorkey=(255, 255, 255)), 'empty': load_image('floor.png', colorkey=(255, 255, 255))}
+               '4': load_image('4.png', colorkey=(255, 255, 255)),
+               'empty': load_image('floor.png', colorkey=(255, 255, 255))}
 player_image = load_image('player.png', colorkey=(255, 255, 255))
 fly_image = pygame.transform.scale2x(load_image('fly.png', colorkey=-1))
 hurt_image = load_image('hurt.png', colorkey=-1)
@@ -193,6 +199,25 @@ tile_width = tile_images['l'].get_rect()[2]
 tile_height = tile_images['r'].get_rect()[2]
 player_high = player_image.get_rect()[2]
 player_width = player_image.get_rect()[3]
+
+
+class Door(pygame.sprite.Sprite):
+    def __init__(self, posx, posy):
+        super().__init__(door_group, all_sprites)
+        self.image = close_door
+        self.type = 'wall'
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect = self.image.get_rect()
+        self.rect.x = posx * tile_width
+        self.rect.y = posy * tile_height
+
+    def update(self):
+        if not bool(enemy_group):
+            self.type = 'door'
+            self.image = open_door
+        else:
+            self.type = 'wall'
+            self.image = close_door
 
 
 class Bullet(pygame.sprite.Sprite):
@@ -295,7 +320,6 @@ class Turret(pygame.sprite.Sprite):
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, columns, rows, posx, posy):
-        print(1)
         super().__init__(player_group, all_sprites)
         self.frames = {}
         self.cut_sheet(player_image, columns, rows)
@@ -427,8 +451,7 @@ def pause():
 
 class Centre:
     def __init__(self, x, y):
-        self.x = x
-        self.y = y
+        self.rect = pygame.Rect((x, y), (1, 1))
 
     def move_centre(self, dx, dy):
         self.x += dx
@@ -437,7 +460,7 @@ class Centre:
 
 centre = Centre(width / 2, height / 2)
 player = None
-
+door_group = pygame.sprite.Group()
 all_sprites = pygame.sprite.Group()
 tiles_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
@@ -516,6 +539,7 @@ while running:
                     player.stand = False
                     fl = True
                     for tile in collided_sprites:
+
                         if player.rect.x + player_high - 1 > tile.rect.x > player.rect.x:
                             fl = False
                             d = False
@@ -587,7 +611,14 @@ while running:
                     player.cur_direct = player.last_direct
                 if (w, a, s, d) == (False, False, False, False,):
                     player.stand = True
-        # camera.update()
+        for door in door_group:
+            if pygame.sprite.collide_mask(player, door):
+                camera.update(player)
+                for sprite in all_sprites:
+                    player.rect.x += 300 + 800
+                    if sprite.type != 'player':
+                        sprite.rect.x -= 800
+
         if w:
             player.rect.y -= player.speed
         if s:
@@ -596,8 +627,8 @@ while running:
             player.rect.x += player.speed
         if a:
             player.rect.x -= player.speed
-        # for sprite in all_sprites:
-        #     camera.apply(sprite)
+        for sprite in all_sprites:
+            camera.apply(sprite)
         for sprite in enemy_group:
             if pygame.sprite.collide_mask(player, sprite):
                 if not inv:
@@ -606,10 +637,15 @@ while running:
                     inv = True
 
         screen.fill(pygame.Color(0, 0, 0))
+        for door in door_group:
+            door.update()
+        door_group.draw(screen)
         tiles_group.draw(screen)
         player_group.draw(screen)
+
         for enemy in enemy_group:
             enemy.update()
+
         enemy_group.draw(screen)
         bullet_group.draw(screen)
         for bul in bullet_group:
