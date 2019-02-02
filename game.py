@@ -118,6 +118,44 @@ def terminate():
     sys.exit()
 
 
+class Room:
+    def __init__(self, map):
+        self.level = map
+        self.tiles = []
+        self.enemies = []
+        self.generate_level()
+
+    def generate_level(self):
+        global player
+        level = self.level
+        for y in range(len(level)):
+            for x in range(len(level[y])):
+                if level[y][x] == '.':
+                    self.tiles.append(Tile('empty', x, y))
+                elif level[y][x] == '-':
+                    self.tiles.append(Tile('-', x, y, wall=True))
+                elif level[y][x] == '_':
+                    self.tiles.append(Tile('_', x, y, wall=True))
+                elif level[y][x] == 'r':
+                    self.tiles.append(Tile('r', x, y, wall=True))
+                elif level[y][x] == 'l':
+                    self.tiles.append(Tile('l', x, y, wall=True))
+                elif level[y][x] == '1':
+                    self.tiles.append(Tile('1', x, y, wall=True))
+                elif level[y][x] == '2':
+                    self.tiles.append(Tile('2', x, y, wall=True))
+                elif level[y][x] == '3':
+                    self.tiles.append(Tile('3', x, y, wall=True))
+                elif level[y][x] == '4':
+                    self.tiles.append(Tile('4', x, y, wall=True))
+                elif level[y][x] == '@':
+                    self.tiles.append(Tile('empty', x, y))
+                    player = Player(3, 4, x, y, )
+                elif level[y][x] == '*':
+                    self.tiles.append(Tile('empty', x, y))
+                    self.enemies.append(Fly(2, 1, x, y, ))
+
+
 def load_level(filename):
     filename = "data/" + filename
     mapFile = open(filename, 'r')
@@ -133,26 +171,26 @@ def load_level(filename):
             maxWidth = len(level_map[i])
 
     # допролняем каждую строку пустыми клетками ('.')
-    for i in range(len(level_map)):
-        if len(level_map[i]) < maxWidth:
-            level_map[i] += '.' * (maxWidth - len(level_map[i]))
+    # for i in range(len(level_map)):
+    #     if len(level_map[i]) < maxWidth:
+    #         level_map[i] += '.' * (maxWidth - len(level_map[i]))
     return level_map
 
 
-pause_image = load_image('fone_2.png', colorkey=-1)
-tile_images = {'l': load_image('l_wall.png'), 'r': load_image('r_wall.png'),
-               '_': load_image('_.png'),
-               '-': load_image('-.png'), '1': load_image('1.png'),
-               '2': load_image('2.png'), '3': load_image('3.png'),
-               '4': load_image('4.png'), 'empty': load_image('floor.png')}
-player_image = load_image('player.png', colorkey=-1)
+pause_image = load_image('fone_2.png')
+tile_images = {'l': load_image('l_wall.png', colorkey=(255, 255, 255)), 'r': load_image('r_wall.png', colorkey=(255, 255, 255)),
+               '_': load_image('_.png', colorkey=(255, 255, 255)),
+               '-': load_image('-.jpg', colorkey=(255, 255, 255)), '1': load_image('1.png', colorkey=(255, 255, 255)),
+               '2': load_image('2.png', colorkey=(255, 255, 255)), '3': load_image('3.png', colorkey=(255, 255, 255)),
+               '4': load_image('4.png', colorkey=(255, 255, 255)), 'empty': load_image('floor.png', colorkey=(255, 255, 255))}
+player_image = load_image('player.png', colorkey=(255, 255, 255))
 fly_image = pygame.transform.scale2x(load_image('fly.png', colorkey=-1))
 hurt_image = load_image('hurt.png', colorkey=-1)
 laser_image = load_image('laser.png', colorkey=-1)
 bullet_image = load_image('bullet.png', colorkey=-1)
 
-tile_width = tile_images['empty'].get_rect()[2]
-tile_height = tile_images['empty'].get_rect()[2]
+tile_width = tile_images['l'].get_rect()[2]
+tile_height = tile_images['r'].get_rect()[2]
 player_high = player_image.get_rect()[2]
 player_width = player_image.get_rect()[3]
 
@@ -194,13 +232,13 @@ class Bullet(pygame.sprite.Sprite):
 
 
 class Tile(pygame.sprite.Sprite):
-    def __init__(self, type, posx, posy):
+    def __init__(self, type, posx, posy, wall=False):
         super().__init__(tiles_group, all_sprites)
-        self.type = type
-        if type != 'empty':
-            self.type = 'wall'
         self.hearts = 0
         self.image = tile_images[type]
+        if wall:
+            type = 'wall'
+        self.type = type
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(tile_width * posx, tile_height * posy)
 
@@ -257,6 +295,7 @@ class Turret(pygame.sprite.Sprite):
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, columns, rows, posx, posy):
+        print(1)
         super().__init__(player_group, all_sprites)
         self.frames = {}
         self.cut_sheet(player_image, columns, rows)
@@ -405,37 +444,6 @@ player_group = pygame.sprite.Group()
 enemy_group = pygame.sprite.Group()
 bullet_group = pygame.sprite.Group()
 
-
-def generate_level(level):
-    global player
-    for y in range(len(level)):
-        for x in range(len(level[y])):
-            if level[y][x] == '.':
-                Tile('empty', x, y)
-            elif level[y][x] == '-':
-                Tile('-', x, y,)
-            elif level[y][x] == '_':
-                Tile('_', x, y)
-            elif level[y][x] == 'r':
-                Tile('r', x, y)
-            elif level[y][x] == 'l':
-                Tile('l', x, y)
-            elif level[y][x] == '1':
-                Tile('1', x, y)
-            elif level[y][x] == '2':
-                Tile('2', x, y)
-            elif level[y][x] == '3':
-                Tile('3', x, y)
-            elif level[y][x] == '4':
-                Tile('4', x, y)
-            elif level[y][x] == '@':
-                Tile('empty', x, y)
-                player = Player(3, 4, x, y, )
-            elif level[y][x] == '*':
-                Tile('empty', x, y)
-                Fly(2, 1, x, y, )
-
-
 level = load_level("levelex.txt")
 
 
@@ -455,6 +463,7 @@ class Camera:
 
 camera = Camera()
 
+room = Room(level)
 running = True
 direction = None
 w, a, s, d = [False for i in range(4)]
@@ -464,7 +473,7 @@ fire_pause = False
 fire_rate = 0
 while running:
     startScreen()
-    generate_level(level)
+
     while running:
         if fire_pause:
             fire_rate += 1
@@ -484,7 +493,7 @@ while running:
                 running = False
             elif event.type == pygame.KEYDOWN:
                 collided_sprites = []
-                for sprite in tiles_group:
+                for sprite in all_sprites:
                     if pygame.sprite.collide_mask(player, sprite):
                         if sprite.type == 'wall':
                             collided_sprites.append(sprite)
@@ -495,6 +504,7 @@ while running:
                         if tile.rect.x < player.rect.x < tile.rect.x + tile_width - 1 and player.rect.x:
                             fl = False
                             a = False
+                            player.rect.x += 2
 
                     if fl:
                         a = True
@@ -509,6 +519,7 @@ while running:
                         if player.rect.x + player_high - 1 > tile.rect.x > player.rect.x:
                             fl = False
                             d = False
+                            player.rect.x -= 2
                     if fl:
                         d = True
                     if player.cur_direct != 'right':
@@ -521,6 +532,7 @@ while running:
                         if player.rect.y - tile_height - 1 < tile.rect.y < player.rect.y:
                             fl = False
                             w = False
+                            player.rect.y += 2
                     if fl:
                         w = True
                     if player.cur_direct != 'up':
@@ -532,6 +544,7 @@ while running:
                     player.stand = False
                     for tile in collided_sprites:
                         if tile.rect.y > player.rect.y > tile.rect.y - player_high - 1:
+                            player.rect.y -= 2
                             fl = False
                             s = False
                     if fl:
@@ -583,8 +596,8 @@ while running:
             player.rect.x += player.speed
         if a:
             player.rect.x -= player.speed
-        for sprite in all_sprites:
-            camera.apply(sprite)
+        # for sprite in all_sprites:
+        #     camera.apply(sprite)
         for sprite in enemy_group:
             if pygame.sprite.collide_mask(player, sprite):
                 if not inv:
