@@ -201,7 +201,7 @@ fly_image = pygame.transform.scale2x(load_image('fly.png', colorkey=-1))
 hurt_image = load_image('hurt.png', colorkey=-1)
 laser_image = load_image('laser.png', colorkey=-1)
 bullet_image = load_image('bullet.png', colorkey=-1)
-diamond_image = load_image('diamond.jpg', colorkey=(255, 255, 255))
+diamond_image = load_image('diamond.png', colorkey=(255, 255, 255))
 heart_image = load_image('heart.png', colorkey=(255, 255, 255))
 turret_image = load_image('turret.png', colorkey=(255, 255, 255))
 
@@ -240,8 +240,11 @@ class Door(pygame.sprite.Sprite):
 
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, speed, dir, posx, posy, range, type):
-        super().__init__(bullet_group)
+    def __init__(self, speed, dir, posx, posy, range, type, ):
+        if type == 'enemy':
+            super().__init__(bullet_group, enemy_group, all_sprites)
+        else:
+            super().__init__(bullet_group, all_sprites)
         self.type = type
         self.image = bullet_image
         self.mask = pygame.mask.from_surface(self.image)
@@ -249,6 +252,7 @@ class Bullet(pygame.sprite.Sprite):
         self.rect.x = posx
         self.rect.y = posy
         self.speed = speed
+        self.hearts = 0
         self.dir = dir
         self.range = range
         self.cur_range = 0
@@ -260,8 +264,14 @@ class Bullet(pygame.sprite.Sprite):
         for sprite in all_sprites:
             if pygame.sprite.collide_mask(self, sprite):
                 if sprite.type != owner and sprite.type != 'empty' and sprite.type != 'dim':
-                    sprite.hearts -= 1
+                    if sprite.type == 'player':
+                        pass
+                    else:
+                        sprite.hearts -= 1
                     bullet_group.remove(self)
+                    all_sprites.remove(self)
+                    if self.type == 'enemy':
+                        enemy_group.remove(self)
         if self.dir == 'up':
             self.rect.y -= self.speed
             self.cur_range += self.speed
@@ -294,13 +304,16 @@ class Turret(pygame.sprite.Sprite):
     def __init__(self, posx, posy ):
         super().__init__(enemy_group, all_sprites)
         self.stand = True
-        self.hearts = 3
+        self.hearts = 8
         self.type = 'enemy'
         self.image = turret_image
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(tile_width * posx + 15, tile_height * posy + 5)
 
     def update(self):
+        if self.hearts <= 0:
+            enemy_group.remove(self)
+            all_sprites.remove(self)
         if player.rect.x < self.rect.x and self.rect.y == player.rect.y:
             self.fire()
 
@@ -646,8 +659,6 @@ while running:
             player.rect.x -= player.speed
         camera.update(player)
         for sprite in all_sprites:
-            camera.apply(sprite)
-        for sprite in bullet_group:
             camera.apply(sprite)
         for sprite in enemy_group:
             if pygame.sprite.collide_mask(player, sprite):
