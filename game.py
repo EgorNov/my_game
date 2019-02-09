@@ -141,6 +141,8 @@ class Room:
                     self.tiles.append(Tile('r', x, y, wall=True))
                 elif level[y][x] == 'l':
                     self.tiles.append(Tile('l', x, y, wall=True))
+                elif level[y][x] == 'L':
+                    self.tiles.append(Tile('L', x, y, wall=True))
                 elif level[y][x] == '1':
                     self.tiles.append(Tile('1', x, y, wall=True))
                 elif level[y][x] == '2':
@@ -157,6 +159,9 @@ class Room:
                 elif level[y][x] == '*':
                     self.tiles.append(Tile('empty', x, y))
                     self.enemies.append(Fly(2, 1, x, y))
+                elif level[y][x] == 'B':
+                    self.tiles.append(Tile('empty', x, y))
+                    self.enemies.append(Boss(2, 1, x, y))
                 elif level[y][x] == 't':
                     self.tiles.append(Tile('empty', x, y))
                     self.enemies.append(Turret(x, y))
@@ -198,17 +203,22 @@ tile_images = {'l': load_image('l_wall.png', colorkey=(255, 255, 255)),
                'empty': load_image('floor.png', colorkey=(255, 255, 255))}
 player_image = load_image('player.png', colorkey=(255, 255, 255))
 fly_image = pygame.transform.scale2x(load_image('fly.png', colorkey=-1))
+boss_image = load_image('boss.png', colorkey=-1)
 hurt_image = load_image('hurt.png', colorkey=-1)
 laser_image = load_image('laser.png', colorkey=-1)
 bullet_image = load_image('bullet.png', colorkey=-1)
+bullet_image_f = load_image('bullet_f.png', colorkey=-1)
+bullet_image_l = pygame.transform.scale2x(load_image('bullet.png', colorkey=-1))
+bullet_image_l_f = pygame.transform.scale2x(load_image('bullet_f.png', colorkey=-1))
 diamond_image = load_image('diamond.png', colorkey=(255, 255, 255))
 heart_image = load_image('heart.png', colorkey=(255, 255, 255))
 turret_image = load_image('turret.png', colorkey=(255, 255, 255))
 
-tile_width = tile_images['l'].get_rect()[2]
-tile_height = tile_images['r'].get_rect()[2]
 player_high = player_image.get_rect()[2]
 player_width = player_image.get_rect()[3]
+
+tile_height = tile_images['empty'].get_rect()[2]
+tile_width = tile_images['empty'].get_rect()[3]
 
 
 class Heart(pygame.sprite.Sprite):
@@ -240,27 +250,62 @@ class Door(pygame.sprite.Sprite):
 
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, speed, dir, posx, posy, range, type, ):
+    def __init__(self, speed, dir, posx, posy, range, type, scale=False ):
         if type == 'enemy':
             super().__init__(bullet_group, enemy_group, all_sprites)
         else:
             super().__init__(bullet_group, all_sprites)
         self.type = type
-        self.image = bullet_image
+        if scale:
+            self.image = bullet_image_l
+            self.image_f = bullet_image_l_f
+        else:
+            self.image = bullet_image
+            self.image_f = bullet_image_f
         self.mask = pygame.mask.from_surface(self.image)
+        self.frames = []
+        self.cut_sheet(self.image_f, 4, 1)
         self.rect = self.image.get_rect()
         self.rect.x = posx
+
         self.rect.y = posy
+
+        self.cur_frame = 0
         self.speed = speed
         self.hearts = 0
         self.dir = dir
         self.range = range
         self.cur_range = 0
 
+    def cut_sheet(self, sheet, columns, rows):
+        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
+                                sheet.get_height() // rows)
+        for j in range(rows):
+
+            for i in range(columns):
+                frame_location = (self.rect.w * i, self.rect.h * j)
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+
     def update(self):
+
         owner = self.type
+        if self.cur_range >= self.range - len(self.frames):
+            self.cur_frame = (self.cur_frame + 1) % len(self.frames)
+            self.image = self.frames[self.cur_frame]
         if self.cur_range >= self.range:
+            all_sprites.remove(self)
             bullet_group.remove(self)
+            if self.type == 'enemy':
+                enemy_group.remove(self)
         for sprite in all_sprites:
             if pygame.sprite.collide_mask(self, sprite):
                 if sprite.type != owner and sprite.type != 'empty' and sprite.type != 'dim':
@@ -293,9 +338,54 @@ class Tile(pygame.sprite.Sprite):
         self.image = tile_images[type]
         if wall:
             type = 'wall'
+        self.width = self.image.get_rect()[2]
+        self.height = self.image.get_rect()[3]
         self.type = type
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(tile_width * posx, tile_height * posy)
+
+
+class Boss(pygame.sprite.Sprite):
+    def __init__(self, columns, rows, posx, posy):
+        super().__init__(player_group, all_sprites)
+        self.frames = []
+        self.type = 'enemy'
+        self.hearts = 40
+        self.cut_sheet(boss_image, columns, rows)
+        self.cur_frame = 0
+        self.image = self.frames[self.cur_frame]
+        self.rect = self.image.get_rect().move(tile_width * posx + 15, tile_height * posy + 5)
+
+    def cut_sheet(self, sheet, columns, rows):
+        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
+                                sheet.get_height() // rows)
+        for j in range(rows):
+            for i in range(columns):
+                frame_location = (self.rect.w * i, self.rect.h * j)
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+
+    def update(self):
+        self.cur_frame = (self.cur_frame + 1) % len(self.frames)
+        self.image = self.frames[self.cur_frame]
+
+
 
 
 class Turret(pygame.sprite.Sprite):
@@ -306,19 +396,28 @@ class Turret(pygame.sprite.Sprite):
         self.stand = True
         self.hearts = 8
         self.type = 'enemy'
+        self.pause = False
+        self.fire_rate = 0
         self.image = turret_image
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(tile_width * posx + 15, tile_height * posy + 5)
 
     def update(self):
+        if self.pause:
+            self.fire_rate += 1
+        if self.fire_rate == 60:
+            self.pause = False
         if self.hearts <= 0:
             enemy_group.remove(self)
             all_sprites.remove(self)
-        if player.rect.x < self.rect.x and self.rect.y == player.rect.y:
+        if player.rect.x < self.rect.x and self.rect.y <= player.rect.y <= self.rect.y + self.rect[3]:
             self.fire()
 
     def fire(self):
-        Bullet(3, 'left', self.rect.x, self.rect.y, 1000, self.type)
+        if not self.pause:
+            Bullet(3, 'left', self.rect.x, self.rect.y, 1000, self.type, scale=True)
+            self.pause = True
+            self.fire_rate = 0
 
 
 class Player(pygame.sprite.Sprite):
@@ -540,7 +639,7 @@ while running:
         if fire_rate >= player.fire_rate:
             fire_rate = 0
             fire_pause = False
-        if c >= 90:
+        if c >= 60:
             inv = False
             c = 0
         if inv:
@@ -577,7 +676,7 @@ while running:
                     fl = True
                     for tile in collided_sprites:
 
-                        if player.rect.x + player_high - 1 > tile.rect.x > player.rect.x:
+                        if player.rect.x + player_width - 1 > tile.rect.x > player.rect.x:
                             fl = False
                             d = False
                             player.rect.x -= 2
@@ -590,7 +689,7 @@ while running:
                     player.stand = False
                     fl = True
                     for tile in collided_sprites:
-                        if player.rect.y - tile_height - 1 < tile.rect.y < player.rect.y:
+                        if player.rect.y - tile.height - 1 < tile.rect.y < player.rect.y:
                             fl = False
                             w = False
                             player.rect.y += 2
@@ -703,5 +802,7 @@ while running:
         player_group = pygame.sprite.Group()
         enemy_group = pygame.sprite.Group()
         bullet_group = pygame.sprite.Group()
+        colect_group = pygame.sprite.Group()
+        door_group = pygame.sprite.Group()
 
 terminate()
