@@ -347,7 +347,7 @@ class Tile(pygame.sprite.Sprite):
 
 class Boss(pygame.sprite.Sprite):
     def __init__(self, columns, rows, posx, posy):
-        super().__init__(player_group, all_sprites)
+        super().__init__(enemy_group, all_sprites)
         self.frames = []
         self.type = 'enemy'
         self.hearts = 40
@@ -380,12 +380,18 @@ class Boss(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
                 self.frames.append(sheet.subsurface(pygame.Rect(
                     frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
 
     def update(self):
         self.cur_frame = (self.cur_frame + 1) % len(self.frames)
         self.image = self.frames[self.cur_frame]
-
-
 
 
 class Turret(pygame.sprite.Sprite):
