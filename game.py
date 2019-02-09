@@ -128,6 +128,7 @@ class Room:
 
     def generate_level(self):
         global player
+        global boss
         level = self.level
         for y in range(len(level)):
             for x in range(len(level[y])):
@@ -161,7 +162,9 @@ class Room:
                     self.enemies.append(Fly(2, 1, x, y))
                 elif level[y][x] == 'B':
                     self.tiles.append(Tile('empty', x, y))
-                    self.enemies.append(Boss(2, 1, x, y))
+                    boss = Boss(2, 1, x, y)
+                    self.enemies.append(boss)
+
                 elif level[y][x] == 't':
                     self.tiles.append(Tile('empty', x, y))
                     self.enemies.append(Turret(x, y))
@@ -207,6 +210,7 @@ boss_image = load_image('boss.png', colorkey=-1)
 hurt_image = load_image('hurt.png', colorkey=-1)
 laser_image = load_image('laser.png', colorkey=-1)
 bullet_image = load_image('bullet.png', colorkey=-1)
+fireball_image = load_image('fireball.png', colorkey=pygame.Color('white'))
 bullet_image_f = load_image('bullet_f.png', colorkey=-1)
 bullet_image_l = pygame.transform.scale2x(load_image('bullet.png', colorkey=-1))
 bullet_image_l_f = pygame.transform.scale2x(load_image('bullet_f.png', colorkey=-1))
@@ -250,7 +254,7 @@ class Door(pygame.sprite.Sprite):
 
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, speed, dir, posx, posy, range, type, scale=False ):
+    def __init__(self, speed, dir, posx, posy, range, type, scale=False, boss=False):
         if type == 'enemy':
             super().__init__(bullet_group, enemy_group, all_sprites)
         else:
@@ -260,8 +264,12 @@ class Bullet(pygame.sprite.Sprite):
             self.image = bullet_image_l
             self.image_f = bullet_image_l_f
         else:
-            self.image = bullet_image
-            self.image_f = bullet_image_f
+            if not boss:
+                self.image = bullet_image
+                self.image_f = bullet_image_f
+            else:
+                self.image = bullet_image_l
+                self.image_f = fireball_image
         self.mask = pygame.mask.from_surface(self.image)
         self.frames = []
         self.cut_sheet(self.image_f, 4, 1)
@@ -351,10 +359,14 @@ class Boss(pygame.sprite.Sprite):
         self.frames = []
         self.type = 'enemy'
         self.hearts = 40
+        self.dir = 3
         self.cut_sheet(boss_image, columns, rows)
         self.cur_frame = 0
         self.image = self.frames[self.cur_frame]
+        self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(tile_width * posx + 15, tile_height * posy + 5)
+        self.pause = False
+        self.fire_rate = 0
 
     def cut_sheet(self, sheet, columns, rows):
         self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
@@ -390,8 +402,28 @@ class Boss(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
     def update(self):
+        for sprite in all_sprites:
+            if sprite.type == 'wall':
+                if pygame.sprite.collide_mask(self, sprite):
+                    self.dir = -1 * self.dir
+
+        if self.pause:
+            self.fire_rate += 1
+        if self.fire_rate == 40:
+            self.pause = False
+        if self.hearts <= 0:
+            enemy_group.remove(self)
+            all_sprites.remove(self)
+        self.rect.x += self.dir
         self.cur_frame = (self.cur_frame + 1) % len(self.frames)
         self.image = self.frames[self.cur_frame]
+        self.fire()
+
+    def fire(self):
+        if not self.pause:
+            Bullet(3, 'down', self.rect.x + 100, self.rect.y + 84, 1000, self.type, scale=False, boss=True)
+            self.pause = True
+            self.fire_rate = 0
 
 
 class Turret(pygame.sprite.Sprite):
@@ -599,6 +631,7 @@ class Centre:
 
 centre = Centre(width / 2, height / 2)
 player = None
+boss = None
 colect_group = pygame.sprite.Group()
 door_group = pygame.sprite.Group()
 all_sprites = pygame.sprite.Group()
@@ -658,17 +691,25 @@ while running:
                 running = False
             elif event.type == pygame.KEYDOWN:
                 collided_sprites = []
-                for sprite in all_sprites:
-                    if pygame.sprite.collide_mask(player, sprite):
-                        if sprite.type == 'wall':
-                            collided_sprites.append(sprite)
+                for tile in all_sprites:
+                    if pygame.sprite.collide_mask(player, tile):
+                        if tile.type == 'wall':
+                            if tile.rect.x < player.rect.x < tile.rect.x + tile_width - 1 and player.rect.x:
+                                player.rect.x += 2
+                            if player.rect.x + player_width - 1 > tile.rect.x > player.rect.x:
+                                player.rect.x -= 2
+                            if player.rect.y - tile.height - 1 < tile.rect.y < player.rect.y:
+                                player.rect.y += 2
+                            if tile.rect.y > player.rect.y > tile.rect.y - player_high - 1:
+                                player.rect.y -= 2
+                            collided_sprites.append(tile)
                 if event.key == pygame.K_a:
                     player.stand = False
                     fl = True
                     for tile in collided_sprites:
                         if tile.rect.x < player.rect.x < tile.rect.x + tile_width - 1 and player.rect.x:
                             fl = False
-                            a = False
+                            w, a, s, d = [False for i in range(4)]
                             player.rect.x += 2
 
                     if fl:
@@ -684,7 +725,7 @@ while running:
 
                         if player.rect.x + player_width - 1 > tile.rect.x > player.rect.x:
                             fl = False
-                            d = False
+                            w, a, s, d = [False for i in range(4)]
                             player.rect.x -= 2
                     if fl:
                         d = True
@@ -697,9 +738,10 @@ while running:
                     for tile in collided_sprites:
                         if player.rect.y - tile.height - 1 < tile.rect.y < player.rect.y:
                             fl = False
-                            w = False
+                            w, a, s, d = [False for i in range(4)]
                             player.rect.y += 2
                     if fl:
+
                         w = True
                     if player.cur_direct != 'up':
                         player.last_direct = player.cur_direct
@@ -712,7 +754,7 @@ while running:
                         if tile.rect.y > player.rect.y > tile.rect.y - player_high - 1:
                             player.rect.y -= 2
                             fl = False
-                            s = False
+                            w, a, s, d = [False for i in range(4)]
                     if fl:
                         s = True
                     if player.cur_direct != 'down':
