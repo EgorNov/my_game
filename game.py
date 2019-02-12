@@ -33,6 +33,7 @@ def load_image(name, colorkey=None):
 
 
 def startScreen():
+    global f
     # здесь можно вывести красивую картинку
     # ...
 
@@ -66,12 +67,14 @@ def startScreen():
                 terminate()
             elif event.type == pygame.KEYDOWN:
                 if event.key == 13 or event.key == pygame.K_SPACE:
+                    f = pygame.sprite.Group()
                     return  # начинаем игру
         pygame.display.flip()
         clock.tick(fps)
 
 
 def death_screen(sprite):
+    global f
     # здесь можно вывести красивую картинку
     # ...
 
@@ -107,6 +110,7 @@ def death_screen(sprite):
                 terminate()
             elif event.type == pygame.KEYDOWN:
                 if event.key == 13 or event.key == pygame.K_SPACE:
+                    f = pygame.sprite.Group()
                     return  # начинаем игру
         pygame.display.flip()
         e.draw(screen)
@@ -114,37 +118,51 @@ def death_screen(sprite):
 
 
 def end_screen(seconds):
+    global f
     # здесь можно вывести красивую картинку
     # ...
 
     introText = ["Поздравляем", "",
                  "Ваше время:",
-                 str(seconds) + "секунды"]
+                 str(seconds) + "секунды",
+                 'Рекорд:',
+                 str(rec) + "секунды"]
 
     screen.fill(0)
     spr = pygame.sprite.Sprite()
+    win = pygame.sprite.Sprite()
+    win.image = win_image
+    win.rect = win.image.get_rect()
+    win.rect.x = 800
+    win.rect.y = 50
     spr.image = pygame.transform.scale2x(load_image("fone_1.png"))
     spr.rect = spr.image.get_rect()
     f.add(spr)
+    f.add(win)
 
-    font = pygame.font.Font(None, 27)
-    textCoord = 50
-    f.draw(screen)
-    for i in range(len(introText)):
-        stringRendered = pygame.transform.scale2x(font.render(introText[i], 1, pygame.Color('black')))
-        introRect = stringRendered.get_rect()
-        textCoord += 10
-        introRect.top = textCoord
-        introRect.x = 30
-        textCoord += introRect.height
-        screen.blit(stringRendered, introRect)
+
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
             elif event.type == pygame.KEYDOWN:
                 if event.key == 13 or event.key == pygame.K_SPACE:
+                    f = pygame.sprite.Group()
                     return  # начинаем игру
+        font = pygame.font.Font(None, 27)
+        textCoord = 50
+        if win.rect.x > 359:
+            win.rect.x -= 5
+        f.draw(screen)
+        for i in range(len(introText)):
+            stringRendered = pygame.transform.scale2x(font.render(introText[i], 1, pygame.Color('black')))
+            introRect = stringRendered.get_rect()
+            textCoord += 10
+            introRect.top = textCoord
+            introRect.x = 30
+            textCoord += introRect.height
+            screen.blit(stringRendered, introRect)
+
         pygame.display.flip()
         clock.tick(fps)
 
@@ -249,7 +267,9 @@ boss_image = load_image('boss.png', colorkey=-1)
 hurt_image = load_image('hurt.png', colorkey=-1)
 laser_image = load_image('laser.png', colorkey=-1)
 bullet_image = load_image('bullet.png', colorkey=-1)
+win_image = load_image('win.png', colorkey=-1)
 fireball_image = pygame.transform.scale2x(load_image('fireball.png', colorkey=(255, 255, 255)))
+fireball_image_l = pygame.transform.scale2x(fireball_image)
 bullet_image_f = load_image('bullet_f.png', colorkey=-1)
 bullet_image_l = pygame.transform.scale2x(load_image('bullet.png', colorkey=-1))
 bullet_image_l_f = pygame.transform.scale2x(load_image('bullet_f.png', colorkey=-1))
@@ -342,7 +362,6 @@ class Fireball(pygame.sprite.Sprite):
                         pass
                     else:
                         sprite.hearts -= 1
-                    print(sprite.type)
                     bullet_group.remove(self)
                     all_sprites.remove(self)
                     if self.type == 'enemy':
@@ -458,6 +477,28 @@ class Tile(pygame.sprite.Sprite):
         self.rect = self.image.get_rect().move(tile_width * posx, tile_height * posy)
 
 
+class Meteor(pygame.sprite.Sprite):
+    def __init__(self, posx, posy):
+        super().__init__(bullet_group, enemy_group, all_sprites)
+        self.type = enemy
+        self.image = fireball_image_l
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect = self.image.get_rect()
+        self.rect.x = posx
+        self.rect.y = posy
+        self.speed = 2
+        self.hearts = 0
+
+    def update(self):
+
+        owner = self.type
+        if self.rect.y >= 600:
+            all_sprites.remove(self)
+            bullet_group.remove(self)
+            enemy_group.remove(self)
+        self.rect.y += self.speed
+
+
 class Boss(pygame.sprite.Sprite):
     def __init__(self, columns, rows, posx, posy):
         super().__init__(enemy_group, all_sprites)
@@ -472,7 +513,10 @@ class Boss(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect().move(tile_width * posx + 15, tile_height * posy + 5)
         self.pause = False
+        self.pause2 = False
         self.fire_rate = 0
+        self.fire_rate2 = 0
+        self.attack = False
 
     def cut_sheet(self, sheet, columns, rows):
         self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
@@ -508,6 +552,9 @@ class Boss(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
     def update(self):
+        if 0 < self.hearts < 200:
+            self.attack = True
+
         for sprite in all_sprites:
             if sprite.type == 'wall':
                 if pygame.sprite.collide_mask(self, sprite):
@@ -517,6 +564,10 @@ class Boss(pygame.sprite.Sprite):
             self.fire_rate += 1
         if self.fire_rate == 40:
             self.pause = False
+        if self.pause2:
+            self.fire_rate2 += 1
+        if self.fire_rate2 == 180:
+            self.pause2 = False
         if self.hearts <= 0:
             self.hearts = 0
             enemy_group.remove(self)
@@ -529,9 +580,14 @@ class Boss(pygame.sprite.Sprite):
 
     def fire(self):
         if not self.pause:
+
             Fireball(3, 'down', self.rect.x + 100, self.rect.y + 84, 1000, self.type)
             self.pause = True
             self.fire_rate = 0
+        if self.attack and not self.pause2:
+            self.pause2 = True
+            self.fire_rate2 = 0
+            Meteor(player.rect.x - 100, -100)
 
 
 class Turret(pygame.sprite.Sprite):
@@ -755,7 +811,7 @@ def pause():
     sprite.image = pause_image
     sprite.rect = sprite.image.get_rect()
     sprite.rect.x = 200
-    sprite.rect.y = 200
+    sprite.rect.y = 100
     p.draw(screen)
     while True:
         for event in pygame.event.get():
@@ -818,7 +874,12 @@ camera = Camera()
 running = True
 
 while running:
+    pygame.mixer.music.load('data\menu.mp3')
+
+    pygame.mixer.music.play(-1)
     startScreen()
+    pygame.mixer.music.load('data\mbient.mp3')
+    pygame.mixer.music.play(-1)
     room = Room(random.choice(levels))
     direction = None
     w, a, s, d = [False for i in range(4)]
@@ -828,7 +889,12 @@ while running:
     dim = False
     fire_rate = 0
     ticks = 0
+    flagok = True
     while running:
+        if boss.attack and flagok:
+            pygame.mixer.music.load('data\\boss.mp3')
+            pygame.mixer.music.play(-1)
+            flagok = False
         r = False
         ticks += 1
         if not boss.live:
@@ -938,7 +1004,11 @@ while running:
                         player.fire('right')
                         fire_pause = True
                 if event.key == pygame.K_ESCAPE:
+                    pygame.mixer.music.load('data\pause.mp3')
+                    pygame.mixer.music.play(-1)
                     r = pause()
+                    pygame.mixer.music.load('data\mbient.mp3')
+                    pygame.mixer.music.play(-1)
 
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_a:
@@ -1004,6 +1074,7 @@ while running:
             pygame.draw.rect(screen, (255, 0, 0), (i + 50, 575, 50, 25))
         pygame.display.flip()
         clock.tick(fps)
+        # player.dmg = 200
     all_sprites = pygame.sprite.Group()
     tiles_group = pygame.sprite.Group()
     player_group = pygame.sprite.Group()
@@ -1012,9 +1083,24 @@ while running:
     bullet_group = pygame.sprite.Group()
     door_group = pygame.sprite.Group()
     if running and not r:
-
         if boss.live:
+
             death_screen(death_enemy)
         else:
-            end_screen(ticks // fps)
+            pygame.mixer.music.load('data\win.mp3')
+            pygame.mixer.music.play(-1)
+            record = open(os.path.join('data', 'record.txt'), 'r', encoding='utf-8').read().split('\n')
+            time = ticks // fps
+            rec = record[0]
+            try:
+                if int(record[0]) > time:
+                    record = open(os.path.join('data', 'record.txt'), 'w', encoding='utf-8')
+                    record.write(str(time))
+                    rec = time
+                    record.close()
+            except Exception:
+                record = open(os.path.join('data', 'record.txt'), 'w', encoding='utf-8')
+                record.write(str(time))
+                rec = time
+            end_screen(time)
 terminate()
