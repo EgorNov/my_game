@@ -1,6 +1,6 @@
 import os
 import sys
-
+import random
 import pygame
 
 pygame.init()
@@ -254,6 +254,8 @@ bullet_image_f = load_image('bullet_f.png', colorkey=-1)
 bullet_image_l = pygame.transform.scale2x(load_image('bullet.png', colorkey=-1))
 bullet_image_l_f = pygame.transform.scale2x(load_image('bullet_f.png', colorkey=-1))
 diamond_image = load_image('diamond.png', colorkey=(255, 255, 255))
+power_up_image = load_image('power_up.png', colorkey=(255, 255, 255))
+trophy_image = load_image('trophy.png', colorkey=(255, 255, 255))
 heart_image = load_image('heart.png', colorkey=(255, 255, 255))
 turret_image = load_image('turret.png', colorkey=(255, 255, 255))
 
@@ -325,7 +327,6 @@ class Fireball(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
     def update(self):
-
         owner = self.type
         self.cur_frame = (self.cur_frame + 1) % len(self.frames)
         self.image = self.frames[self.cur_frame]
@@ -336,11 +337,12 @@ class Fireball(pygame.sprite.Sprite):
                 enemy_group.remove(self)
         for sprite in all_sprites:
             if pygame.sprite.collide_mask(self, sprite):
-                if sprite.type != owner and sprite.type != 'empty' and sprite.type != 'dim':
+                if sprite.type != owner and sprite.type != 'empty' and sprite.type != 'colect':
                     if sprite.type == 'player':
                         pass
                     else:
                         sprite.hearts -= 1
+                    print(sprite.type)
                     bullet_group.remove(self)
                     all_sprites.remove(self)
                     if self.type == 'enemy':
@@ -516,9 +518,10 @@ class Boss(pygame.sprite.Sprite):
         if self.fire_rate == 40:
             self.pause = False
         if self.hearts <= 0:
-            self.live = False
+            self.hearts = 0
             enemy_group.remove(self)
             all_sprites.remove(self)
+            Trophy(self.rect.x + 100, self.rect.y + 84)
         self.rect.x += self.dir
         self.cur_frame = (self.cur_frame + 1) % len(self.frames)
         self.image = self.frames[self.cur_frame]
@@ -641,7 +644,7 @@ class Power_Up(pygame.sprite.Sprite):
 
     def __init__(self, x, y):
         super().__init__(colect_group, all_sprites)
-        self.image = diamond_image
+        self.image = power_up_image
         self.type = 'colect'
         self.hearts = 0
         self.rect = self.image.get_rect()
@@ -650,10 +653,30 @@ class Power_Up(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
 
     def update(self):
-        global dim
         if pygame.sprite.collide_mask(self, player):
+            all_sprites.remove(self)
             colect_group.remove(self)
             player.dmg += 5
+
+
+class Trophy(pygame.sprite.Sprite):
+    global player
+
+    def __init__(self, x, y):
+        super().__init__(colect_group, all_sprites)
+        self.image = trophy_image
+        self.type = 'colect'
+        self.hearts = 0
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self):
+        if pygame.sprite.collide_mask(self, player):
+            all_sprites.remove(self)
+            colect_group.remove(self)
+            boss.live = False
 
 
 class Fly(pygame.sprite.Sprite):
@@ -740,7 +763,9 @@ def pause():
                 terminate()
             elif event.type == pygame.KEYDOWN:
                 if event.key == 13 or event.key == pygame.K_SPACE:
-                    return  # начинаем игру
+                    return  False
+                if event.key == pygame.K_ESCAPE:
+                    return True
         pygame.display.flip()
         p.draw(screen)
         clock.tick(fps)
@@ -767,7 +792,11 @@ enemy_group = pygame.sprite.Group()
 bullet_group = pygame.sprite.Group()
 heart_group = pygame.sprite.Group()
 
-level = load_level("levelex.txt")
+levels = list()
+levels.append(load_level("level1.txt"))
+levels.append(load_level("level2.txt"))
+levels.append(load_level("level3.txt"))
+
 
 
 class Camera:
@@ -790,7 +819,7 @@ running = True
 
 while running:
     startScreen()
-    room = Room(level)
+    room = Room(random.choice(levels))
     direction = None
     w, a, s, d = [False for i in range(4)]
     inv = False
@@ -800,6 +829,7 @@ while running:
     fire_rate = 0
     ticks = 0
     while running:
+        r = False
         ticks += 1
         if not boss.live:
             break
@@ -908,7 +938,7 @@ while running:
                         player.fire('right')
                         fire_pause = True
                 if event.key == pygame.K_ESCAPE:
-                    pause()
+                    r = pause()
 
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_a:
@@ -943,7 +973,8 @@ while running:
                     player.hearts -= 1
                     death_enemy = sprite
                     inv = True
-
+        if r:
+            break
         screen.fill(pygame.Color(0, 0, 0))
         for door in door_group:
             door.update()
@@ -973,14 +1004,15 @@ while running:
             pygame.draw.rect(screen, (255, 0, 0), (i + 50, 575, 50, 25))
         pygame.display.flip()
         clock.tick(fps)
-    if running:
-        all_sprites = pygame.sprite.Group()
-        tiles_group = pygame.sprite.Group()
-        player_group = pygame.sprite.Group()
-        enemy_group = pygame.sprite.Group()
-        bullet_group = pygame.sprite.Group()
-        colect_group = pygame.sprite.Group()
-        door_group = pygame.sprite.Group()
+    all_sprites = pygame.sprite.Group()
+    tiles_group = pygame.sprite.Group()
+    player_group = pygame.sprite.Group()
+    enemy_group = pygame.sprite.Group()
+    colect_group = pygame.sprite.Group()
+    bullet_group = pygame.sprite.Group()
+    door_group = pygame.sprite.Group()
+    if running and not r:
+
         if boss.live:
             death_screen(death_enemy)
         else:
